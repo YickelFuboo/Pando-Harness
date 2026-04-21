@@ -6,9 +6,7 @@ from sqlalchemy.pool import NullPool
 
 from app.config.settings import settings
 from app.infrastructure.database import Base
-import app.domains.code_analysis.models.analysis_status
-import app.domains.code_analysis.models.git_auth_mgmt
-import app.domains.code_analysis.models.git_repo_mgmt
+import app.agents.sessions.models
 
 config = context.config
 if config.config_file_name is not None:

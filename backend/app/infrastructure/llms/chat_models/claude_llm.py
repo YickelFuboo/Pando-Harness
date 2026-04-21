@@ -1,4 +1,5 @@
 import asyncio
+import json
 from typing import Any,AsyncGenerator,Dict,List,Literal,Optional,Tuple
 import logging
 from anthropic import AsyncAnthropic
@@ -60,6 +61,143 @@ class ClaudeModels(LLM):
         except Exception as e:
             logging.error(f"Error in _format_message: {e}")
             raise e
+
+    def _sanitize_history(self, history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """转换并清洗历史消息，输出 Anthropic 原生 messages 格式。"""
+        sanitized: List[Dict[str, Any]] = []
+        pending_tool_ids: set[str] = set()
+        pending_assistant_index: Optional[int] = None
+
+        def _normalize_text(content: Any) -> str:
+            if content is None:
+                return ""
+            if isinstance(content, str):
+                return content
+            if isinstance(content, list):
+                parts: List[str] = []
+                for item in content:
+                    if isinstance(item, dict):
+                        text = item.get("text")
+                        if isinstance(text, str) and text:
+                            parts.append(text)
+                    elif isinstance(item, str) and item:
+                        parts.append(item)
+                return "\n".join(parts).strip()
+            return str(content)
+
+        def _drop_unresolved_tool_use() -> None:
+            nonlocal pending_assistant_index
+            if pending_assistant_index is None:
+                pending_tool_ids.clear()
+                return
+            if 0 <= pending_assistant_index < len(sanitized):
+                assistant_msg = dict(sanitized[pending_assistant_index])
+                content = assistant_msg.get("content")
+                if isinstance(content, list):
+                    filtered = [b for b in content if not (isinstance(b, dict) and b.get("type") == "tool_use")]
+                    if filtered:
+                        assistant_msg["content"] = filtered
+                        sanitized[pending_assistant_index] = assistant_msg
+                    else:
+                        sanitized.pop(pending_assistant_index)
+            pending_tool_ids.clear()
+            pending_assistant_index = None
+
+        for msg in history:
+            if not isinstance(msg, dict):
+                continue
+            role = msg.get("role")
+            if role not in {"system", "user", "assistant", "tool"}:
+                continue
+
+            if role in {"system", "user"}:
+                if pending_tool_ids:
+                    _drop_unresolved_tool_use()
+                text = _normalize_text(msg.get("content"))
+                if not text:
+                    continue
+                if role == "system":
+                    text = f"[System]\n{text}"
+                sanitized.append({"role": "user", "content": text})
+                continue
+
+            if role == "assistant":
+                if pending_tool_ids:
+                    _drop_unresolved_tool_use()
+
+                blocks: List[Dict[str, Any]] = []
+                text = _normalize_text(msg.get("content"))
+                if text:
+                    blocks.append({"type": "text", "text": text})
+
+                ids: set[str] = set()
+                tool_calls = msg.get("tool_calls")
+                if isinstance(tool_calls, list):
+                    for tc in tool_calls:
+                        if not isinstance(tc, dict):
+                            continue
+                        tool_id = tc.get("id")
+                        function = tc.get("function") if isinstance(tc.get("function"), dict) else {}
+                        tool_name = function.get("name") or tc.get("name")
+                        raw_args = function.get("arguments", tc.get("arguments", {}))
+                        parsed_args: Dict[str, Any]
+                        if isinstance(raw_args, str):
+                            try:
+                                loaded = json.loads(raw_args)
+                                parsed_args = loaded if isinstance(loaded, dict) else {}
+                            except Exception:
+                                parsed_args = {}
+                        elif isinstance(raw_args, dict):
+                            parsed_args = raw_args
+                        else:
+                            parsed_args = {}
+                        if isinstance(tool_id, str) and tool_id and isinstance(tool_name, str) and tool_name:
+                            blocks.append(
+                                {
+                                    "type": "tool_use",
+                                    "id": tool_id,
+                                    "name": tool_name,
+                                    "input": parsed_args,
+                                }
+                            )
+                            ids.add(tool_id)
+
+                if not blocks:
+                    continue
+                sanitized.append({"role": "assistant", "content": blocks})
+                if ids:
+                    pending_tool_ids = set(ids)
+                    pending_assistant_index = len(sanitized) - 1
+                else:
+                    pending_tool_ids.clear()
+                    pending_assistant_index = None
+                continue
+
+            # role == "tool"
+            tool_call_id = msg.get("tool_call_id")
+            if not (pending_tool_ids and isinstance(tool_call_id, str) and tool_call_id in pending_tool_ids):
+                continue
+            tool_content = _normalize_text(msg.get("content"))
+            sanitized.append(
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": tool_call_id,
+                            "content": tool_content or "",
+                        }
+                    ],
+                }
+            )
+            pending_tool_ids.remove(tool_call_id)
+            if not pending_tool_ids:
+                pending_assistant_index = None
+
+        if pending_tool_ids:
+            _drop_unresolved_tool_use()
+
+        return sanitized
 
     async def chat(self, 
                   system_prompt: str,

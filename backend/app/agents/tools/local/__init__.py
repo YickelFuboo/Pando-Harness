@@ -16,13 +16,6 @@ from .todo_read import TodoReadTool
 from .todo_write import TodoWriteTool
 from .web_fetch import WebFetchTool
 from .web_search import WebSearchTool
-from .code.apply_patch import ApplyPatchTool
-from .code.code_dependencies_search import CodeDependenciesSearchTool
-from .code.code_related_files_search import CodeRelatedFilesSearchTool
-from .code.code_shell import CodeShellTool
-from .code.code_similar_search import CodeSimilarSearchTool
-from .code.list_code_files import ListCodeFilesTool
-from .code.lsp_tool import LspTool
 
 __all__ = [
     "AskQuestion",
@@ -43,11 +36,4 @@ __all__ = [
     "TodoWriteTool",
     "WebFetchTool",
     "WebSearchTool",
-    "ApplyPatchTool",
-    "CodeDependenciesSearchTool",
-    "CodeRelatedFilesSearchTool",
-    "CodeShellTool",
-    "CodeSimilarSearchTool",
-    "ListCodeFilesTool",
-    "LspTool",
 ]

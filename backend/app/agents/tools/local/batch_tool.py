@@ -8,8 +8,8 @@ if TYPE_CHECKING:
 
 
 MAX_BATCH_SIZE=25
-DISALLOWED_TOOLS={"batch_tools","apply_patch"}
-FILTERED_FROM_SUGGESTIONS={"invalid","apply_patch","batch_tools"}
+DISALLOWED_TOOLS={"batch_tools"}
+FILTERED_FROM_SUGGESTIONS={"invalid","batch_tools"}
 
 
 class BatchTool(BaseTool):

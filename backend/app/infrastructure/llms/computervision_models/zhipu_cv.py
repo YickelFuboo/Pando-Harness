@@ -2,7 +2,7 @@ import logging
 from typing import Optional, Union, List, Dict, Any, Tuple
 from io import BytesIO
 import asyncio
-from zhipuai import ZhipuAI
+from zai import ZhipuAiClient
 from .base import BaseComputerVision, MAX_RETRY_ATTEMPTS
 
 
@@ -23,7 +23,7 @@ class ZhipuCV(BaseComputerVision):
         """
         super().__init__(api_key, model_provider, model_name, base_url, language)
         
-        self.client = ZhipuAI(api_key=api_key)
+        self.client = ZhipuAiClient(api_key=api_key)
     
     async def describe(self, image: Union[str, bytes, BytesIO, Any]) -> Tuple[str, int]:
         """
@@ -175,7 +175,7 @@ class ZhipuCV(BaseComputerVision):
                     )
                 )
                 
-                for resp in response:
+                async for resp in response:
                     if not resp.choices[0].delta.content:
                         continue
                     delta = resp.choices[0].delta.content

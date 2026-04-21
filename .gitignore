@@ -49,7 +49,8 @@ config.toml
 .pando/
 # 前台服务
 node_modules
-dist
+frontend/dist/
+dist/
 *.local
 .DS_Store
 .env
@@ -67,3 +68,10 @@ pnpm-debug.log*
 *.njsproj
 *.sln
 *.sw?
+
+# Packaging artifacts
+release/
+backend/build/
+backend/dist/
+backend/frontend_dist/
+backend/*.spec

@@ -7,13 +7,6 @@ from .truncation import Truncate
 from app.agents.tools.local import (
     AskQuestion,
     BatchTool,
-    ApplyPatchTool,
-    CodeDependenciesSearchTool,
-    CodeRelatedFilesSearchTool,
-    CodeSimilarSearchTool,
-    CodeShellTool,
-    ListCodeFilesTool,
-    LspTool,
     CronTool,
     ReadDirTool,
     ReadFileTool,
@@ -44,26 +37,21 @@ def register_tools_by_config(
     params:Dict[str,Any],
 )->None:
     usable=set(usable_tool_names)
-
-    # 根据 agent_type 和 params 初始化工具参数
-    is_code_agent=agent_type in {"CodeAnalysis","CodeAgent","CodingAgent"}
-    repo_id=str(params.get("repo_id") or "").strip() if is_code_agent else ""
-    tool_init_kwargs={"repo_id":repo_id,"isCodeAgent":is_code_agent}
     tools_to_register:List[BaseTool]=[]
 
     # 注册工具
     if "ask_question" in usable:
         tools_to_register.append(AskQuestion())
     if "file_read" in usable:
-        tools_to_register.append(ReadFileTool(**tool_init_kwargs))
+        tools_to_register.append(ReadFileTool())
     if "file_write" in usable:
-        tools_to_register.append(WriteFileTool(**tool_init_kwargs))
+        tools_to_register.append(WriteFileTool())
     if "file_insert" in usable:
-        tools_to_register.append(InsertFileTool(**tool_init_kwargs))
+        tools_to_register.append(InsertFileTool())
     if "file_replace_text" in usable:
-        tools_to_register.append(ReplaceFileTextTool(**tool_init_kwargs))
+        tools_to_register.append(ReplaceFileTextTool())
     if "file_replace_multi_text" in usable:
-        tools_to_register.append(MultiReplaceTextTool(**tool_init_kwargs))
+        tools_to_register.append(MultiReplaceTextTool())
     if "glob_search" in usable:
         tools_to_register.append(GlobTool())
     if "grep_search" in usable:
@@ -72,21 +60,6 @@ def register_tools_by_config(
         tools_to_register.append(ReadDirTool())
     if "shell_exec" in usable:
         tools_to_register.append(ExecTool())
-
-    if "list_code_files" in usable:
-        tools_to_register.append(ListCodeFilesTool())
-    if "apply_patch" in usable:
-        tools_to_register.append(ApplyPatchTool(repo_id=repo_id))
-    if "code_similar_search" in usable:
-        tools_to_register.append(CodeSimilarSearchTool(repo_id=str(params.get("repo_id") or "")))
-    if "code_related_files_search" in usable:
-        tools_to_register.append(CodeRelatedFilesSearchTool(repo_id=str(params.get("repo_id") or "")))
-    if "code_dependencies_search" in usable:
-        tools_to_register.append(CodeDependenciesSearchTool(repo_id=str(params.get("repo_id") or "")))
-    if "lsp" in usable:
-        tools_to_register.append(LspTool(repo_id=repo_id))
-    if "code_shell" in usable:
-        tools_to_register.append(CodeShellTool())
 
     if "todo_read" in usable:
         tools_to_register.append(TodoReadTool(session_id=session_id))

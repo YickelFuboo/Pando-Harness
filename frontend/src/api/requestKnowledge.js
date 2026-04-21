@@ -7,7 +7,9 @@ function getUserId() {
 }
 
 function buildUrl(path, params = {}) {
-  const url = new URL(path.startsWith('http') ? path : `${BASE_URL}${path}`)
+  const target = path.startsWith('http') ? path : `${BASE_URL}${path}`
+  const base = (typeof window !== 'undefined' && window.location) ? window.location.origin : 'http://127.0.0.1'
+  const url = new URL(target, base)
   const uid = params.user_id ?? getUserId()
   if (uid) url.searchParams.set('user_id', uid)
   Object.keys(params).forEach((k) => {

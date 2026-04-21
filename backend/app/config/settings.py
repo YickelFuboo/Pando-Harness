@@ -1,7 +1,9 @@
 import os
+import sys
+from pathlib import Path
 from typing import Optional
-from pydantic_settings import BaseSettings
 from pydantic import Field
+from pydantic_settings import BaseSettings
 from app.utils.common import get_project_meta, normalize_path
 
 
@@ -11,7 +13,31 @@ APP_NAME = _meta["name"]
 APP_VERSION = _meta["version"]
 APP_DESCRIPTION = _meta["description"]
 
-PROJECT_BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+PROJECT_BASE_DIR = Path(__file__).resolve().parents[2]
+
+def is_frozen_runtime() -> bool:
+    return bool(getattr(sys, "frozen", False))
+
+def get_runtime_base_dir() -> Path:
+    if is_frozen_runtime():
+        return Path(sys.executable).resolve().parent
+    return PROJECT_BASE_DIR
+
+def get_runtime_config_dir() -> Path:
+    if is_frozen_runtime():
+        return get_runtime_base_dir() / "config"
+    return PROJECT_BASE_DIR / "app" / "config"
+
+def get_runtime_env_file() -> Path:
+    if is_frozen_runtime():
+        return get_runtime_config_dir() / "env"
+    return PROJECT_BASE_DIR / "env.development"
+
+def get_runtime_data_dir() -> Path:
+    if is_frozen_runtime():
+        return get_runtime_base_dir() / "data"
+    return PROJECT_BASE_DIR / "data"
+
 
 class Settings(BaseSettings):
     """应用配置类 - 平铺结构"""
@@ -84,7 +110,7 @@ class Settings(BaseSettings):
     compaction_prune_protected_tools: str = Field(default="skill", description="不参与修剪的工具名(逗号分隔)", env="COMPACTION_PRUNE_PROTECTED_TOOLS")
 
     class Config:
-        env_file = os.path.join(PROJECT_BASE_DIR, "env")
+        env_file = str(get_runtime_env_file())
         env_file_encoding = "utf-8"
         extra = "ignore"
     
@@ -99,7 +125,7 @@ class Settings(BaseSettings):
             raw_path = self.sqlite_path
             if not raw_path:
                 filename = self.db_name if self.db_name.lower().endswith(".db") else f"{self.db_name}.db"
-                raw_path = os.path.join(PROJECT_BASE_DIR, "data", filename)
+                raw_path = str(get_runtime_data_dir() / "sqlite" / filename)
             abs_path = os.path.abspath(raw_path)
             parent_dir = os.path.dirname(abs_path)
             if parent_dir and not os.path.isdir(parent_dir):

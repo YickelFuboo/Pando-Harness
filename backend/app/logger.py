@@ -3,8 +3,9 @@ import logging
 import sys
 import os
 from datetime import datetime
+from pathlib import Path
 from colorama import init, Fore, Style
-from app.config.settings import settings
+from app.config.settings import settings, get_runtime_base_dir
 
 # 初始化 colorama
 init(autoreset=True)
@@ -108,10 +109,10 @@ def setup_logging():
     root_logger.addHandler(console_handler)
 
     # 文件 Handler（无颜色，纯文本）
-    log_dir = "logs"
-    os.makedirs(log_dir, exist_ok=True)
+    log_dir = get_runtime_base_dir() / "logs"
+    Path(log_dir).mkdir(parents=True, exist_ok=True)
     file_handler = logging.FileHandler(
-        os.path.join(log_dir, f"app_{datetime.now().strftime('%Y%m%d')}.log"),
+        str(log_dir / f"app_{datetime.now().strftime('%Y%m%d')}.log"),
         encoding='utf-8'
     )
     file_handler.setLevel(log_level)

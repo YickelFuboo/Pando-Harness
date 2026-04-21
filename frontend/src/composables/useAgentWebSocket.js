@@ -17,6 +17,8 @@ export function useAgentWebSocket() {
   const lastActivityAt = ref(0)
   let pingTimer = null
   let messageHandler = null
+  /** 当前正在连接/已连接的会话，用于避免同一会话被重复 connect（会 disconnect 掉进行中的握手，触发 onerror） */
+  let activeSessionId = null
 
   function markActivity() {
     lastActivityAt.value = Date.now()
@@ -30,6 +32,7 @@ export function useAgentWebSocket() {
   }
 
   function disconnect() {
+    activeSessionId = null
     clearTimers()
     const s = ws.value
     if (s) {
@@ -43,10 +46,28 @@ export function useAgentWebSocket() {
 
   function connect(sessionId, onMessage) {
     if (!sessionId) return
-    disconnect()
     messageHandler = onMessage
+    const existing = ws.value
+    if (
+      activeSessionId === sessionId &&
+      existing &&
+      (existing.readyState === WebSocket.OPEN || existing.readyState === WebSocket.CONNECTING)
+    ) {
+      return
+    }
+    activeSessionId = sessionId
+    clearTimers()
+    if (existing) {
+      try {
+        existing.close()
+      } catch (_) {}
+      ws.value = null
+    }
+    connected.value = false
+
     const url = buildWsUrl(sessionId)
     if (!url) {
+      activeSessionId = null
       if (onMessage) onMessage({ message_type: 'connect_error', content: 'WebSocket 地址未配置' })
       return
     }
@@ -75,6 +96,7 @@ export function useAgentWebSocket() {
       clearTimers()
       connected.value = false
       ws.value = null
+      activeSessionId = null
       if (messageHandler) messageHandler({ message_type: 'disconnect', content: '' })
     }
 

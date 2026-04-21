@@ -1113,12 +1113,17 @@ onUnmounted(() => {
   border-radius: 12px 12px 4px 12px;
   border-color: rgba(0, 0, 0, 0.08);
 }
+/* 与 .qa-msg-content 的 pre-wrap 叠加会让块级 MD 行距异常偏大，改为常规排版 */
 .qa-markdown {
-  line-height: 1.4;
+  white-space: normal;
+  line-height: 1.38;
 }
 .qa-markdown :deep(p) {
-  margin: 0 0 0.15em !important;
-  line-height: 1.4;
+  margin: 0 !important;
+  line-height: 1.38;
+}
+.qa-markdown :deep(p + p) {
+  margin-top: 0.35em !important;
 }
 .qa-markdown :deep(* + p),
 .qa-markdown :deep(* + ul),
@@ -1129,10 +1134,10 @@ onUnmounted(() => {
 .qa-markdown :deep(* + h4),
 .qa-markdown :deep(* + h5),
 .qa-markdown :deep(* + h6) {
-  margin-top: 0.15em !important;
+  margin-top: 0.35em !important;
 }
-.qa-markdown :deep(p:last-child) {
-  margin-bottom: 0 !important;
+.qa-markdown :deep(p:first-child) {
+  margin-top: 0 !important;
 }
 .qa-markdown :deep(h1),
 .qa-markdown :deep(h2),
@@ -1140,21 +1145,34 @@ onUnmounted(() => {
 .qa-markdown :deep(h4),
 .qa-markdown :deep(h5),
 .qa-markdown :deep(h6) {
-  margin: 0.15em 0 0.05em !important;
+  margin: 0.35em 0 0.2em !important;
   font-weight: 600;
-  line-height: 1.2;
+  line-height: 1.25;
+}
+.qa-markdown :deep(h1):first-child,
+.qa-markdown :deep(h2):first-child,
+.qa-markdown :deep(h3):first-child {
+  margin-top: 0 !important;
 }
 .qa-markdown :deep(h1) { font-size: 1.3em; }
 .qa-markdown :deep(h2) { font-size: 1.2em; }
 .qa-markdown :deep(h3) { font-size: 1.1em; }
 .qa-markdown :deep(ul),
 .qa-markdown :deep(ol) {
-  margin: 0.05em 0 !important;
-  padding-left: 1.5em;
+  margin: 0.25em 0 !important;
+  padding-left: 1.35em;
 }
 .qa-markdown :deep(li) {
-  margin: 0.05em 0 !important;
-  line-height: 1.4;
+  margin: 0 !important;
+  padding: 0;
+  line-height: 1.38;
+}
+/* marked 常在 li 内包一层 p，段落默认 margin 会撑大行距 */
+.qa-markdown :deep(li > p) {
+  margin: 0 !important;
+}
+.qa-markdown :deep(li + li) {
+  margin-top: 0.2em !important;
 }
 .qa-markdown :deep(blockquote) {
   margin: 0.15em 0 !important;

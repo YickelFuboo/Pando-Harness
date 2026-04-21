@@ -1,21 +1,21 @@
 import asyncio
-import uvicorn
 import logging
+import uvicorn
 from datetime import datetime
 from fastapi import FastAPI, HTTPException, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from app.agents.sessions import models as _agent_session_models
 from app.logger import set_log_level, setup_logging
 from app.config.settings import settings, APP_NAME, APP_VERSION, APP_DESCRIPTION
 from app.middleware.logging import logging_middleware
-from app.infrastructure.database import close_db, health_check_db
+from app.infrastructure.database import Base, close_db, get_db_session, health_check_db
 from app.agents.bus.queues import MESSAGE_BUS
 from app.agents.tools.mcp.manager import MCP_POOL
 from app.channel.websocket.websocket import router as websocket_router
 from app.domains.cron import CRON_MANAGER
 from app.agents.api import router as agents_router
 from app.agents.sessions.api import router as sessions_router
-from app.channel.Restful.api import router as restful_router
 from app.infrastructure.llms.api import router as llms_router
 
 
@@ -46,7 +46,6 @@ app.include_router(llms_router, prefix="/api/v1", tags=["模型管理"])
 app.include_router(agents_router, prefix="/api/v1", tags=["Agent列表查询"])
 app.include_router(sessions_router, prefix="/api/v1", tags=["Agent 会话管理"])
 app.include_router(websocket_router, prefix="/api/v1", tags=["WebSocket Channel"])
-app.include_router(restful_router, prefix="/api/v1", tags=["Restful Channel"])
 
 
 #==================================
@@ -72,6 +71,12 @@ async def startup_event():
     """应用启动时初始化"""
     try:
         logging.info("开始应用启动流程...")
+
+        if settings.database_type.lower() == "sqlite":
+            async with get_db_session() as session:
+                conn = await session.connection()
+                await conn.run_sync(Base.metadata.create_all)
+            logging.info("SQLite 表结构检查完成")
 
         app.state.message_bus_task = asyncio.create_task(MESSAGE_BUS.run())
         logging.info("MessageBus 已在后台运行")

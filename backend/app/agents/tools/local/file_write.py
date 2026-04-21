@@ -3,13 +3,11 @@ from pathlib import Path
 from typing import Any, Dict
 from ..base import BaseTool
 from ..schemes import ToolResult, ToolSuccessResult, ToolErrorResult
-from .utils import _trim_diff, _two_files_patch, _is_code_agent_enabled, _touch_lsp_after_write, _append_lsp_diagnostics
+from .utils import _trim_diff, _two_files_patch
 
 
 class WriteFileTool(BaseTool):
     """Write content to a file."""
-    def __init__(self,**kwargs:Any):
-        self.kwargs=kwargs
 
     @property
     def name(self) -> str:
@@ -93,9 +91,6 @@ Usage:
                 diff,
                 "</diff>",
             ])
-            if _is_code_agent_enabled(self.kwargs):
-                diagnostics=await _touch_lsp_after_write(file_path,self.kwargs)
-                output=_append_lsp_diagnostics(output,file_path,diagnostics)
             return ToolSuccessResult(output)
             
         except Exception as e:

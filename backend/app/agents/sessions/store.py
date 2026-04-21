@@ -11,7 +11,7 @@ from .message import Message
 from .models import SessionRecord
 from .session import Session
 from app.infrastructure.database import get_db
-from app.config.settings import PROJECT_BASE_DIR
+from app.config.settings import get_runtime_data_dir
 
 
 class SessionStore(ABC):
@@ -47,7 +47,7 @@ def _normalize_session_data(data: dict) -> None:
     if "channel_type" not in data:
         data["channel_type"] = ""
 
-LOCAL_SESSION_STORAGE_DIR = str(Path(PROJECT_BASE_DIR) / "data" / ".sessions")
+LOCAL_SESSION_STORAGE_DIR = str(get_runtime_data_dir() / ".sessions")
 
 class LocalFileSessionStore(SessionStore):
     """本地文件存储：目录下 {session_id}.json，用 _cache 存 load 结果。"""

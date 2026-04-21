@@ -20,7 +20,7 @@ def get_project_meta(package_name: str = "knowledge-service"):
     if not toml_path.exists():
         return {
             "name": "unknown-project",
-            "version": "",
+            "version": "0.0.0",
             "description": "",
         }
     

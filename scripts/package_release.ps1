@@ -3,60 +3,95 @@ $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $rootDir = Resolve-Path (Join-Path $scriptDir "..")
 
-$frontendDistDir = Join-Path $rootDir "frontend/dist"
-$backendExe = Join-Path $rootDir "backend/dist/pando-backend.exe"
+$backendExe = Join-Path $rootDir "dist/backend/pando.exe"
+$packRootDir = Join-Path $rootDir "dist"
 $releaseDir = Join-Path $rootDir "release"
-$releaseBackendDir = Join-Path $releaseDir "backend"
-$releaseFrontendDir = Join-Path $releaseDir "frontend"
 $releaseConfigDir = Join-Path $releaseDir "config"
+$legacyBackendBuildDir = Join-Path $rootDir "backend/build"
+$legacyBackendDistDir = Join-Path $rootDir "backend/dist"
+$legacyBackendFrontendDistDir = Join-Path $rootDir "backend/frontend_dist"
+$legacyBackendSpecFile = Join-Path $rootDir "backend/pando.spec"
 
-if (-not (Test-Path $frontendDistDir)) {
-    throw "frontend dist not found: $frontendDistDir. Please run scripts/build_frontend.ps1 first."
+function Remove-WithRetry {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [switch]$Recurse,
+        [int]$MaxTries = 8
+    )
+    if (-not (Test-Path $Path)) { return $true }
+    for ($i = 1; $i -le $MaxTries; $i++) {
+        try {
+            if ($Recurse) {
+                Remove-Item $Path -Recurse -Force -ErrorAction Stop
+            }
+            else {
+                Remove-Item $Path -Force -ErrorAction Stop
+            }
+            return $true
+        }
+        catch {
+            if ($i -eq $MaxTries) {
+                Write-Warning "[release] cleanup skipped after retries: $Path"
+                Write-Warning "[release] last cleanup error: $($_.Exception.Message)"
+                return $false
+            }
+            Start-Sleep -Milliseconds (200 * $i)
+        }
+    }
+    return $false
 }
 
 if (-not (Test-Path $backendExe)) {
     throw "backend exe not found: $backendExe. Please run scripts/build_backend.ps1 first."
 }
 
-if (Test-Path $releaseDir) {
-    Remove-Item $releaseDir -Recurse -Force
+if (-not (Test-Path $releaseDir)) {
+    New-Item -ItemType Directory -Path $releaseDir | Out-Null
+}
+New-Item -ItemType Directory -Path $releaseConfigDir -Force | Out-Null
+
+Copy-Item $backendExe $releaseDir -Force
+
+$backendEnvProd = Join-Path $rootDir "backend/env.production"
+$backendEnv = if (Test-Path $backendEnvProd) { $backendEnvProd } else { Join-Path $rootDir "backend/env" }
+$releaseEnv = Join-Path $releaseConfigDir "env"
+if ((Test-Path $backendEnv) -and (-not (Test-Path $releaseEnv))) {
+    Copy-Item $backendEnv $releaseEnv
 }
 
-New-Item -ItemType Directory -Path $releaseBackendDir | Out-Null
-New-Item -ItemType Directory -Path $releaseFrontendDir | Out-Null
-New-Item -ItemType Directory -Path $releaseConfigDir | Out-Null
-
-Copy-Item $backendExe $releaseBackendDir
-Copy-Item (Join-Path $frontendDistDir "*") $releaseFrontendDir -Recurse
-
-$envExample = Join-Path $rootDir "backend/.env.example"
-if (Test-Path $envExample) {
-    Copy-Item $envExample (Join-Path $releaseConfigDir "backend.env.example")
+$modelConfigDir = Join-Path $rootDir "backend/app/config"
+if (Test-Path $modelConfigDir) {
+    Get-ChildItem -Path $modelConfigDir -Filter "*.json" | ForEach-Object {
+        $target = Join-Path $releaseConfigDir $_.Name
+        if (-not (Test-Path $target)) {
+            Copy-Item $_.FullName $target
+        }
+    }
 }
 
-$startBat = @'
-@echo off
-setlocal
-
-set ROOT=%~dp0
-set BACKEND_EXE=%ROOT%backend\pando-backend.exe
-
-if not exist "%BACKEND_EXE%" (
-  echo backend exe not found: %BACKEND_EXE%
-  exit /b 1
-)
-
-echo Starting backend...
-start "pando-backend" "%BACKEND_EXE%"
-
-echo.
-echo Frontend files are in: %ROOT%frontend
-echo Deploy frontend dist with nginx or any static web server.
-echo.
-echo Done.
-exit /b 0
-'@
-
-Set-Content -Path (Join-Path $releaseDir "start.bat") -Value $startBat -Encoding Ascii
+# 清理 dist 中已复制到 release 的产物，保留 backend_build 与 pando.spec 以支持增量构建
+if (Test-Path $packRootDir) {
+    $distBackendDir = Join-Path $packRootDir "backend"
+    $distFrontendEmbed = Join-Path $packRootDir "frontend_dist"
+    if (Test-Path $distBackendDir) {
+        [void](Remove-WithRetry -Path $distBackendDir -Recurse)
+    }
+    if (Test-Path $distFrontendEmbed) {
+        [void](Remove-WithRetry -Path $distFrontendEmbed -Recurse)
+    }
+}
+if (Test-Path $legacyBackendBuildDir) {
+    [void](Remove-WithRetry -Path $legacyBackendBuildDir -Recurse)
+}
+if (Test-Path $legacyBackendDistDir) {
+    [void](Remove-WithRetry -Path $legacyBackendDistDir -Recurse)
+}
+if (Test-Path $legacyBackendFrontendDistDir) {
+    [void](Remove-WithRetry -Path $legacyBackendFrontendDistDir -Recurse)
+}
+if (Test-Path $legacyBackendSpecFile) {
+    [void](Remove-WithRetry -Path $legacyBackendSpecFile)
+}
 
 Write-Host "[release] packaged at: $releaseDir"
+

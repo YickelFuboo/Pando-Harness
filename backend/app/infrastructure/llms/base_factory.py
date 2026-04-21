@@ -1,14 +1,13 @@
-import json
-from nt import rename
-import os
-import time
 import hashlib
+import json
+import os
 import threading
+import time
 from abc import ABC, abstractmethod
 from collections import OrderedDict
 from copy import copy
-from typing import Dict, Any, Optional, Type, TypeVar, Generic, Tuple, List, Set
-from app.config.settings import PROJECT_BASE_DIR
+from typing import Any, Dict, Generic, List, Optional, Set, Tuple, Type, TypeVar
+from app.config.settings import get_runtime_config_dir
 
 
 DEFAULT_CACHE_TTL_SECONDS = 3600
@@ -36,7 +35,7 @@ class BaseModelFactory(ABC, Generic[T]):
         Args:
             config_filename: 配置文件名称
         """
-        self.config_path = os.path.join(PROJECT_BASE_DIR, "app", "config", config_filename)
+        self.config_path = str(get_runtime_config_dir() / config_filename)
         self._config = None
         # 实例缓存
         self._instance_cache_lock = threading.Lock()

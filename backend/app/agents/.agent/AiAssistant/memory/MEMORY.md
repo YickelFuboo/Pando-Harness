@@ -1,44 +1,39 @@
 # AiAssistant Agent Long-term Memory
 
-## Core Capabilities
-- Intelligent conversation and task execution assistant with code, file operations, search, and cron functionality
-- Multilingual support (Chinese, English)
-- Todo list management and status tracking
-- Location-based services and navigation assistance
+## Tool Usage Experience
+- web_search requires query and optional count parameter for information gathering, effective for price comparisons and research
+- todo_read for checking todo list status, returns remaining count and todo items
+- cron action: "list" retrieves current scheduled tasks with job details (id, name, schedule, enabled status)
+- cron action: "add" creates new scheduled with cron_expr and message, returns job_id
+- cron action: "remove" deletes tasks by job_id
+- cron reminders are system-internal notifications, not SMS/calls to external phone numbers
+- todo_write tool may not be available in all environments - attempt could fail with "Tool not found" error
+
+## Cron Task Management
+- cron_expr format: "minute hour day month weekday" (e.g., "0 6 * * *" for 6:00 AM daily)
+- Task naming: use bracketed descriptions for clarity (e.g., "【AI行业早报】", "【股市早报】")
+- **Cron reliability issue: Tasks may show "enabled: True" but fail to execute automatically. "定时提醒" notifications in log don't equal execution.**
+- **Verification method: Check for expected output files (e.g., "AI咨询-YYYY-MM-DD.md"). If files missing, manually trigger web_search.**
+- To check tasks: use cron action "list" with no parameters
+- **Email delivery: cron tasks cannot send emails to external addresses (e.g., @163.com, @huawei.com). Only system-internal notifications available.**
+
+## Monitoring Sources
+- Tech news sites: venturebeat.com, techcrunch.com, theverge.com, arstechnica.com, wired.com
+- Financial news: 21jingji.com (21世纪经济报道), cs.com.cn (中国证券报), cnstock.com (上海证券报), stcn.com (证券时报)
+- WeChat Official Accounts (微信公众号) for Chinese-language AI/tech content
+- Official platform documentation URLs for product updates
+- arXiv sections: cs.SE (Software Engineering), cs.AI (Artificial Intelligence), cs.CL (Computation and Language)
+
+## Search Strategy
+- AI/tech keywords: AI, LLM, 大模型, OpenAI, Claude, GPT, ChatGPT, Gemini, DeepSeek, 通义千问, 文心一言, ArXiv, software engineering, automated programming, AI testing
+- Stock/financial keywords: A股, 港股, 宏观经济, 政策, 监管, IPO, 财报, 央行, 降息, 加息, 货币政策
+- Use evergreen keywords ("release", "launch", "announce") rather than specific product names that become outdated
+- Generic "news" keyword searches often yield low-value; prioritize specific sources
+- Track pushed URLs in a file to deduplicate and avoid repeated searches
 
 ## Key Interaction Patterns
 - When users write partial/unclear phrases, provide clarification options
 - Respond in user's language when they communicate in that language
-- For location/destination queries, require specific address or landmark details
-- Use web_search for real-time information gathering (transportation, locations, services, price comparisons)
-- Use todo_app for task management and todo_read for status checks
-- Use status commands like /status? to check current task state
-
-## Tool Usage Experience
-- flight_search_flight requires departure, destination, and date parameters
-- flight_search_flight returns structured data with airlines, times, and terminal information
-- web_search requires query and optional count parameter for information gathering, effective for price comparisons across platforms
-- todo_read for checking todo list status, returns remaining count and todo items
-- cron reminders are system-internal notifications, not SMS/calls to external phone numbers
 - Personal name tracking: remember and use user's preferred name in conversations
-- file_write file_write file_read file_read file_read file_read file_read glob_search
-
-## Transportation Planning Essentials
-- Xi'an to Shanghai: average travel time ~2.5 hours, China Eastern Airlines most popular
-- Xi'an Airport: T3 for Shanghai flights, T5 for most other routes (not walkable)
-- Shanghai airports: Hongqiao (closer to city), Pudong (international)
-- Hongqiao Airport T2 directly connected to railway station (5-minute indoor walkway)
-- Hongqiao Metro connections: Line 2 (downtown), Line 10 (city center), Line 17 (Xincen/Huawei R&D)
-- Always include city-to-airport transit time (1-1.5 hours) and recommend arriving 2 hours before departure
-- Tight schedule calculation: meeting time → airport arrival → flight departure → city departure
-
-## Location-Specific Knowledge
-- Shanghai Metro Line 17 serves Xincen Station (opened Nov 30, 2024) for Huawei R&D center
-- Metro vs taxi: Metro cheaper and avoids traffic, taxi better for luggage
-- Price comparison essential across platforms (Ctrip, Qunar, Fliggy, airline official sites)
-
-## Flight Booking Process
-- Airline websites and APPs provide direct booking, price protection, and 24/7 customer service
-- Electronic invoice delivery via email, with customer service assistance available
-- Airport counter service available for immediate paper invoices (require order number and ID)
-- Multi-platform price comparison recommended: official sites, Ctrip, Qunar, Fliggy, Tianxun
+- Use status commands like /status? to check current task state
+- File naming pattern: "AI咨询-YYYY-MM-DD.md", "股市早报-YYYY-MM-DD.md", "AI论文咨询-YYYY-MM-DD.md"

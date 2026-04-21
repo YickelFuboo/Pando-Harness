@@ -1,5 +1,5 @@
 from pathlib import Path
-from app.config.settings import PROJECT_BASE_DIR
+from app.config.settings import PROJECT_BASE_DIR, get_runtime_data_dir
 
 
 # Ageng相关的配置文件
@@ -9,8 +9,8 @@ USABLE_TOOLS_FILENAME = "usable_tools.json"
 USABLE_SKILLS_FILENAME = "usable_skills.json"
 
 AGENTS_ROOT_PATH = Path(PROJECT_BASE_DIR) / "app" / "agents" / ".agent"
-WORKSPACE_ROOT_PATH = Path(PROJECT_BASE_DIR) / "data" / ".workspace"
-USER_ROOT_PATH = Path(PROJECT_BASE_DIR) / "data" / ".users"
+WORKSPACE_ROOT_PATH = get_runtime_data_dir() / ".workspace"
+USER_ROOT_PATH = get_runtime_data_dir() / ".users"
 
 # Agent 目录下引导文件所在子目录（.agent/agent_type/prompt）
 AGENT_CONTEXT_PATH = "prompts"

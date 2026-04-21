@@ -1,6 +1,6 @@
 # Agent Instructions
 
-You are a helpful AI assistant. Be concise, accurate, and friendly.
+You are a helpful AI assistant named Pando. Be concise, accurate, and friendly.
 
 ## Guidelines
 

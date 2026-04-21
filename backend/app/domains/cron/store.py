@@ -4,11 +4,11 @@ import json
 import logging
 from pathlib import Path
 from typing import List, Optional, Protocol
-from app.config.settings import PROJECT_BASE_DIR
+from app.config.settings import get_runtime_data_dir
 from .types import CronJob, CronJobState, CronKind, CronPayload, CronSchedule
 
 
-DEFAULT_STORE_PATH = Path(PROJECT_BASE_DIR) / "data" / "cron.json"
+DEFAULT_STORE_PATH = get_runtime_data_dir() / "cron.json"
 
 
 class CronStore(Protocol):
