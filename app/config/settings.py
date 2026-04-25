@@ -31,7 +31,7 @@ def get_runtime_config_dir() -> Path:
 def get_runtime_env_file() -> Path:
     if is_frozen_runtime():
         return get_runtime_config_dir() / "env"
-    return PROJECT_BASE_DIR / "env.development"
+    return PROJECT_BASE_DIR / "env"
 
 def get_runtime_data_dir() -> Path:
     if is_frozen_runtime():
