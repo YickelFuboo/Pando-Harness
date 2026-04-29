@@ -5,7 +5,8 @@ from abc import ABC
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-from app.agents.contants import AGENT_CONFIG_DIR, AGENTS_RUNTIME_DATA_DIR, WORKSPACE_RUNTIME_DATA_DIR, USER_RUNTIME_DATA_DIR, AGENT_META_FILE, AGENT_USABLE_SKILLS_FILE
+from app.config.settings import settings
+from app.agents.contants import AGENT_CONFIG_DIR, AGENT_META_FILE, AGENT_USABLE_SKILLS_FILE
 from app.agents.sessions.manager import SESSION_MANAGER
 from app.agents.sessions.message import Role, Message, ToolCall, Function
 from app.infrastructure.llms.chat_models.schemes import ToolArgsParser
@@ -64,13 +65,8 @@ class ToolChoice(str, Enum):
     AUTO = "auto"
     REQUIRED = "required"
 
-class BaseAgent(ABC):
-    """Base Agent class
-
-    Base class for all agents, defining basic properties and methods.
-    执行类，不参与 schema 序列化，仅用 __init__ 内 self 赋值。
-    """
-
+class AgentRunContext(ABC):
+    """Agent运行动态上下文"""
     def __init__(
         self,
         agent_type: str,
@@ -78,22 +74,11 @@ class BaseAgent(ABC):
         channel_id: str,
         session_id: str,
         user_id: str,
-        workspace_dir: Optional[str] = None,
-        system_prompt: Optional[str] = None,
-        user_prompt: Optional[str] = None,
-        next_step_prompt: Optional[str] = None,
+        project_path: Optional[str] = None,
         llm_provider: Optional[str] = None,
         llm_model: Optional[str] = None,
-        temperature: Optional[float] = None,
-        memory_window: Optional[int] = None,
-        max_steps: Optional[int] = None,
-        max_duplicate_steps: Optional[int] = None,
         **kwargs: Any,
     ):
-        # 基本信息
-        self.agent_type = agent_type
-        self.description: str = ""
-
         # 客户端信息
         self.channel_type = channel_type
         self.channel_id = channel_id
@@ -102,45 +87,59 @@ class BaseAgent(ABC):
         self.session_id = session_id
         self.user_id = user_id
 
-        # 提示词信息
-        self.system_prompt = system_prompt or "You are pando, a helpful assistant."
-        self.user_prompt = user_prompt or ""
-        self.next_step_prompt = next_step_prompt or "Please continue your work."
-
         # 模型信息
         self.llm_provider = llm_provider or ""
         self.llm_model = llm_model or ""
-        self.temperature = temperature or 0.7
-        self.memory_window = memory_window or 100
 
         self.params = dict(kwargs)
+
+        # Agent运行空间
+        self.workspace_path = self._get_workspace_path() # Agent工作的目标项目路径
+        self.project_path = project_path or None  # Agent运行的项目路径
+
+    def _get_workspace_path(self) -> Path:
+        return Path(settings.runtime_data_dir) / ".workspace" / self.user_id
+
+
+class BaseAgent(ABC):
+    """Base Agent class
+
+    Base class for all agents, defining basic properties and methods.
+    执行类，不参与 schema 序列化，仅用 __init__ 内 self 赋值。
+    """
+
+    def __init__(self, agent_type: str):
+        # 基本信息
+        self.agent_type = agent_type
+        self.agent_path = AGENT_CONFIG_DIR / self.agent_type # Agent的定义路径
+        self.description: str = ""
+        self._load_meta()
+
+        # 提示词信息
+        self.system_prompt = "You are pando, a helpful assistant."
+        self.user_prompt = ""
+        self.next_step_prompt = "Please continue your work."
+
+        # 模型信息
+        self.temperature = 0.7
+        self.memory_window = 100
 
         # 执行步数相关
         self._state = AgentState.IDLE
         self._current_step = 0
-        self._max_steps = max_steps or 50
-        self._max_duplicate_steps = max_duplicate_steps or 2   # 最大重复次数，用于检验当前项agent是否挂死
+        self._max_steps = 50
+        self._max_duplicate_steps = 2   # 最大重复次数，用于检验当前项agent是否挂死
         self._stop_requested = False
-
-        # 配置文件路径        
-        self.agent_config_dir = str(AGENT_CONFIG_DIR / agent_type) # Agent的定义路径
-        # 工作项目路径
-        self.workspace_dir = workspace_dir  # Agent工作的目标项目路径
-        # 运行时空间路径
-        self.agent_runtime_dir = str(AGENTS_RUNTIME_DATA_DIR / agent_type)  # Agent的运行时数据空间路径
-        self.user_runtime_dir = str(USER_RUNTIME_DATA_DIR / user_id)  # Agent的用户数据空间路径
-        self.workspace_runtime_dir = str(WORKSPACE_RUNTIME_DATA_DIR / user_id / agent_type)  # Agent的工作空间路径
 
         # 技能相关
         self.skill_names: list[str] = []
         self.skills_extend_enabled = False
         self._load_skills_config()
         
-        self._load_meta()
 
     def _load_meta(self) -> None:
         """Load .agent/{agent_type}/meta.json and set description (English)."""
-        meta_path = Path(self.agent_config_dir) / AGENT_META_FILE
+        meta_path = Path(self.agent_path) / AGENT_META_FILE
         if not meta_path.is_file():
             return
         try:
@@ -152,7 +151,7 @@ class BaseAgent(ABC):
 
     def _load_skills_config(self) -> None:
         """从 usable_skills.json 加载 enable_extend（yes/no）与 allow 名单（与 usable_tools 策略一致）。"""
-        skills_path = Path(self.agent_config_dir) / AGENT_USABLE_SKILLS_FILE
+        skills_path = Path(self.agent_path) / AGENT_USABLE_SKILLS_FILE
         if not skills_path.is_file():
             return
         try:
@@ -259,8 +258,8 @@ class BaseAgent(ABC):
     async def notify_user(self, message: Message):
         """Notify user"""
         msg_dict = message.to_user_message()
-        from app.agents.bus.queues import MESSAGE_BUS, OutboundMessage
-        await MESSAGE_BUS.push_outbound(OutboundMessage(
+        from app.agents.bus.queues import MESSAGE_GATEWAY, OutboundMessage
+        await MESSAGE_GATEWAY.push_outbound(OutboundMessage(
             channel_type=self.channel_type,
             channel_id=self.channel_id,
             user_id=self.user_id,

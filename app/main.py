@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import uvicorn
 from datetime import datetime
@@ -15,10 +14,10 @@ from app.infrastructure.redis import REDIS_CONN
 from app.utils.auth.jwt_middleware import create_jwt_middleware
 from app.infrastructure.celery.app import celery_app
 from app.infrastructure.database import Base, close_db, get_db_session, health_check_db
-from app.agents.bus.queues import MESSAGE_BUS
+from app.agents.bus.queues import start_message_gateway, stop_message_gateway
 from app.agents.tools.mcp.manager import MCP_POOL
 from app.channel.websocket.websocket import router as websocket_router
-from app.services.cron.manager import CRON_MANAGER
+from app.services.cron.manager import start_cron, stop_cron
 from app.agents.api import router as agents_router
 from app.agents.sessions.api import router as sessions_router
 from app.infrastructure.llms.api import router as llms_router
@@ -105,16 +104,13 @@ async def startup_event():
                 await conn.run_sync(Base.metadata.create_all)
             logging.info("SQLite 表结构检查完成")
 
-        app.state.message_bus_task = asyncio.create_task(MESSAGE_BUS.run())
-        logging.info("MessageBus 已在后台运行")
+        start_message_gateway()
+        
+        if settings.enable_cron:
+            start_cron()
+            logging.info("Cron 调度已启动")
 
         MCP_POOL.start_idle_cleanup()
-
-        if settings.run_cron:
-            CRON_MANAGER.start()
-            logging.info("Cron 调度已启动")
-        else:
-            logging.info("当前进程未启用 Cron (RUN_CRON=false)")
 
         started = FileAnalysisService.start_global_scheduler()
         if started:
@@ -131,20 +127,13 @@ async def startup_event():
 @app.on_event("shutdown")
 async def shutdown_event():
     """应用关闭时清理"""
-    task = getattr(app.state, "message_bus_task", None)
-    if task and not task.done():
-        task.cancel()
-        try:
-            await task
-        except asyncio.CancelledError:
-            pass
-        logging.info("MessageBus 已停止")
+    await stop_message_gateway()
+
+    if settings.enable_cron:
+        await stop_cron()
+        logging.info("Cron 调度已停止")
 
     MCP_POOL.stop_idle_cleanup()
-
-    if settings.run_cron:
-        CRON_MANAGER.stop()
-        logging.info("Cron 调度已停止")
 
     await FileAnalysisService.stop_global_scheduler()
     logging.info("代码分析全局调度已停止")

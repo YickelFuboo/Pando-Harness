@@ -3,7 +3,7 @@ import uuid
 import asyncio
 from abc import ABC
 from typing import Any, Dict, List, Optional, Tuple
-from app.agents.bus.queues import MESSAGE_BUS
+from app.agents.bus.queues import MESSAGE_GATEWAY
 from app.agents.bus.types import InboundMessage
 from app.agents.core.base import AgentState, ToolChoice, extract_stream_tool_calls
 from app.agents.sessions.compaction import SessionCompaction
@@ -46,34 +46,10 @@ SUBAGENT_USABLE_TOOL_NAMES=[
 class SubAgentManager(ABC):
     """SubAgent 管理器"""
     
-    def __init__(
-        self,
-        user_id: str,
-        parent_agent_type: str,
-        session_id: str,
-        channel_type: str,
-        channel_id: str,
-        workspace_path: str,
-        llm_provider: Optional[str] = None,
-        llm_model: Optional[str] = None,
-        temperature: Optional[float] = None,
-        **kwargs: Any,
-    ):
+    def __init__(self, parent_agent_type: str):
 
         # 基本信息
-        self.user_id = user_id
         self.parent_agent_type = parent_agent_type
-        self.session_id = session_id
-        self.channel_type = channel_type
-        self.channel_id = channel_id
-        self.workspace_path = workspace_path
-
-        # 模型信息
-        self.llm_provider = llm_provider or ""
-        self.llm_model = llm_model or ""
-        self.temperature = temperature or 0.7
-
-        self.params = kwargs
 
         # 运行任务信息
         self._running_tasks: Dict[str, asyncio.Task] = {}
@@ -144,7 +120,7 @@ class SubAgentManager(ABC):
                 llm_model=self.llm_model,
                 is_internal=True,
             )
-            await MESSAGE_BUS.push_inbound(inbound_msg)
+            await MESSAGE_GATEWAY.push_inbound(inbound_msg)
         except Exception as e:
             content = self._format_subagent_result(
                 task_id=task_id,
@@ -162,7 +138,7 @@ class SubAgentManager(ABC):
                 llm_model=self.llm_model,
                 is_internal=True,
             )
-            await MESSAGE_BUS.push_inbound(inbound_msg)
+            await MESSAGE_GATEWAY.push_inbound(inbound_msg)
 
     @staticmethod
     def _format_subagent_result(task_id: str, label: str, result: Dict[str, Any]) -> str:

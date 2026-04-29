@@ -2,6 +2,7 @@ import asyncio
 import logging
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from app.agents.bus.types import InboundMessage, OutboundMessage, AgentEntry
+from app.config.settings import settings
 
 
 # Agent 池相关配置
@@ -30,6 +31,7 @@ def _make_agent_pool_key(
 
 class MessageBus:
     def __init__(self):
+        self._task: Optional[asyncio.Task[None]] = None
         self.inbound: asyncio.Queue[InboundMessage] = asyncio.Queue()
         self.outbound: asyncio.Queue[OutboundMessage] = asyncio.Queue()
         # session mailbox/worker 模型：同一 session 串行、不同 session 并行
@@ -121,6 +123,27 @@ class MessageBus:
             self._run_agent_pool_cleanup_loop(),
         )
 
+    def start(self) -> None:
+        """启动消息网关后台任务。"""
+        if self._task is not None and not self._task.done():
+            logging.warning("Message gateway already running")
+            return
+        self._task = asyncio.create_task(self.run(), name="message_gateway")
+
+    async def stop(self) -> None:
+        """停止并等待消息网关后台任务退出。"""
+        task = self._task
+        if task is None:
+            return
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        finally:
+            if self._task is task:
+                self._task = None
+
     async def _run_inbound_loop(self) -> None:
         """循环消费 inbound：系统命令(/status、/stop)直接处理不排队；其余按 session 入 mailbox 串行执行。"""
         while True:
@@ -176,15 +199,30 @@ class MessageBus:
         session_id = inbound_msg.session_id
         if not session_id:
             raise ValueError("Session ID is required")
+
+        # 获取会话mailbox
         async with self._session_lock:
             mailbox = self.session_mailboxes.get(session_id)
             if mailbox is None:
                 mailbox = asyncio.Queue(maxsize=SESSION_MAILBOX_MAXSIZE)
                 self.session_mailboxes[session_id] = mailbox
             self._session_last_active_at[session_id] = asyncio.get_running_loop().time()
+
+            # 若没有运行中的会话worker，则创建
             worker = self._session_workers.get(session_id)
-            if worker is None or worker.done():
+            if worker is None or worker.done():                
                 self._session_workers[session_id] = asyncio.create_task(self._run_session_worker(session_id))
+            
+            # 如果启用消息中断，新消息来则强制设置当前运行中的Agent停止标志，等正式停止后处理mailBox中下一条消息
+            if settings.enable_message_interrupt:
+                running_agent = self.running_agent_pool.get(session_id)
+                if running_agent:
+                    running_agent.force_stop()
+                    logging.info(
+                        "Inbound interrupt: session_id=%s",
+                        session_id,
+                    )
+            
             if mailbox.full():
                 try:
                     mailbox.get_nowait()
@@ -200,6 +238,7 @@ class MessageBus:
                 mailbox.put_nowait(inbound_msg)
 
     async def _run_session_worker(self, session_id: str) -> None:
+        # 逐条处理当前session_id的mailbox中的消息
         while True:
             mailbox = self.session_mailboxes.get(session_id)
             if mailbox is None:
@@ -218,7 +257,7 @@ class MessageBus:
                 continue
             try:
                 async with self._global_run_semaphore:
-                    await self._handle_inbound(msg)
+                    await self._handle_inbound(msg)  # Agent处理完，继续处理下一轮
             except Exception as e:
                 logging.exception("Session worker failed: session_id=%s err=%s", session_id, e)
                 try:
@@ -351,4 +390,12 @@ class MessageBus:
                     if not kept:
                         self.free_agent_pool.pop(pool_key, None)
 
-MESSAGE_BUS = MessageBus()
+MESSAGE_GATEWAY = MessageBus()
+
+def start_message_gateway() -> None:
+    """启动消息网关。"""
+    MESSAGE_GATEWAY.start()
+
+async def stop_message_gateway() -> None:
+    """停止消息网关。"""
+    await MESSAGE_GATEWAY.stop()

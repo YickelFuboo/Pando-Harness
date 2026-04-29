@@ -144,11 +144,19 @@ class CronManager:
         )
         logging.info("Cron manager started")
 
-    def stop(self) -> None:
-        if self._task is None:
+    async def stop(self) -> None:
+        """停止并等待 Cron 后台任务退出。"""
+        task = self._task
+        if task is None:
             return
-        self._task.cancel()
-        self._task = None
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        finally:
+            if self._task is task:
+                self._task = None
         logging.info("Cron manager stopped")
 
     async def add_job(
@@ -243,3 +251,11 @@ class CronManager:
 
 
 CRON_MANAGER = CronManager(store=CronFileStore(), on_execute=default_on_execute)
+
+def start_cron() -> None:
+    """启动 Cron 管理器"""
+    CRON_MANAGER.start()
+
+async def stop_cron() -> None:
+    """停止 Cron 管理器并等待退出。"""
+    await CRON_MANAGER.stop()
