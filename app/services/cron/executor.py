@@ -1,6 +1,6 @@
 """Cron 到期执行的预置实现：按 payload.kind 分支 REMIND（推送通知）与 AGENT（调用 Agent）。"""
 import logging
-from app.agents.bus.queues import MESSAGE_BUS, InboundMessage, OutboundMessage
+from app.agents.bus.queues import MESSAGE_GATEWAY, InboundMessage, OutboundMessage
 from app.agents.sessions.message import Message
 from app.agents.sessions.manager import SESSION_MANAGER
 from .types import CronJob, CronKind
@@ -9,8 +9,8 @@ from .types import CronJob, CronKind
 async def default_on_execute(job: CronJob) -> None:
     """
     定时任务到期时的预置执行逻辑。
-    - REMIND: 将 message 通过 MESSAGE_BUS 推送给用户（需渠道注册 CHANNEL_OUTBOUND_CALLBACKS）。
-    - AGENT: 创建/使用会话并投递到 MESSAGE_BUS，由 ReActAgent 执行。
+    - REMIND: 将 message 通过 MESSAGE_GATEWAY 推送给用户（需渠道注册 CHANNEL_OUTBOUND_CALLBACKS）。
+    - AGENT: 创建/使用会话并投递到 MESSAGE_GATEWAY，由 ReActAgent 执行。
     """
     payload = job.payload
     if payload.kind == CronKind.REMIND:
@@ -28,7 +28,7 @@ async def default_on_execute(job: CronJob) -> None:
             session_id=session_id,
             content="定时提醒：" + payload.message,
         )
-        await MESSAGE_BUS.push_outbound(msg)
+        await MESSAGE_GATEWAY.push_outbound(msg)
         if session_id:
             await SESSION_MANAGER.add_message(session_id, Message.assistant_message("定时提醒：" + payload.message))
         logging.info("Cron job %s REMIND pushed to bus and session_id=%s", job.id, session_id)
@@ -57,7 +57,7 @@ async def default_on_execute(job: CronJob) -> None:
             user_id=payload.user_id,
             content=content or "执行定时任务",
         )
-        await MESSAGE_BUS.push_inbound(inbound)
+        await MESSAGE_GATEWAY.push_inbound(inbound)
         logging.info("Cron job %s AGENT pushed to bus session_id=%s", job.id, session_id)
     else:
         logging.warning("Cron job %s unknown kind %s", job.id, getattr(payload.kind, "value", payload.kind))

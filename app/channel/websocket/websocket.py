@@ -3,7 +3,7 @@ import json
 import logging
 from fastapi import APIRouter, WebSocket, HTTPException
 from starlette.websockets import WebSocketDisconnect
-from app.agents.bus.queues import CHANNEL_OUTBOUND_CALLBACKS, MESSAGE_BUS, InboundMessage, OutboundMessage
+from app.agents.bus.queues import CHANNEL_OUTBOUND_CALLBACKS, MESSAGE_GATEWAY, InboundMessage, OutboundMessage
 from .manager import WEBSOCKET_MANAGER, WebSocketMessage, WebSocketMessageType
 from app.channel.schemes import UserRequest
 from app.agents.sessions.manager import SESSION_MANAGER
@@ -75,7 +75,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str = None):
                     llm_model=payload.llm_model if payload.llm_model is not None else (session.llm_model or ""),
                     metadata=payload.metadata,
                 )
-                await MESSAGE_BUS.push_inbound(inbound_msg)
+                await MESSAGE_GATEWAY.push_inbound(inbound_msg)
         except WebSocketDisconnect:
             logging.info(f"WebSocket client disconnected: {session_id}")
         except asyncio.TimeoutError:
@@ -101,7 +101,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str = None):
             logging.info(f"WebSocket disconnected: {session_id}")
 
 def _on_websocket_outbound(msg: OutboundMessage) -> None:
-    """向对端发送消息的回调，供 MESSAGE_BUS 使用。断链后无法主动推送，需客户端重连。"""
+    """向对端发送消息的回调，供 MESSAGE_GATEWAY 使用。断链后无法主动推送，需客户端重连。"""
 
     async def _send():
         if msg.session_id not in WEBSOCKET_MANAGER.active_connections:
